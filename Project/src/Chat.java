@@ -206,11 +206,20 @@ public class Chat   {
 
             if (option == 1) //JOIN
             {
+                System.out.print("IP address? ");
+                String ip = s.nextLine();
+
+                System.out.print("Port? ");
+                port = s.nextInt();
+
+                ipSuccessor = ip;
+                portSuccessor = port;
+
                 try
                 {
-                    Socket socket = new Socket("localhost", port);
+                    Socket socket = new Socket(ipSuccessor, portSuccessor);
                     ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                    JsonObject join = createJOINmsg("oscar", myPort);
+                    JsonObject join = createJOINmsg("steve", myPort);
                     JsonWriter jsonWriter = Json.createWriter(oos);
                     jsonWriter.write(join);
                     jsonWriter.close();
@@ -236,17 +245,14 @@ public class Chat   {
           /*
           Create a simple user interface
 
-          The first thing to do is to join
-             ask the ip and port when joining and set ipSuccessor = ip, portSuccessor = port
+          The first thing to do is to join ask the ip and port when joining and set ipSuccessor = ip, portSuccessor = port
           Socket socket = new Socket(ipSuccessor, portSuccessor);
 
 
           // Create the mssages m using JsonWriter and send it as stream
 
-          ObjectOutputStream oos = new
-          ObjectOutputStream(socket.getOutputStream());
-          ObjectInputStream ois = new
-          ObjectInputStream(socket.getInputStream());
+          ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
+          ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
           oos.write(m);   this sends the message
             ois.read();    reads the response and parse it using JsonParser
           socket.close();
