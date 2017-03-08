@@ -10,7 +10,7 @@
     <orderEntry type="module-library" exported="">
       <library>
         <CLASSES>
-          <root url="jar://$USER_HOME$/Downloads/javax.json-1.0.jar!/" />
+          <root url="jar://$MODULE_DIR$/src/javax.json-1.0.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
