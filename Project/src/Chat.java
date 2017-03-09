@@ -1,355 +1,281 @@
-import java.io.*;
-import java.net.*;
 import javax.json.*;
-import java.util.Scanner;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
 import java.util.concurrent.Semaphore;
 
 public class Chat {
-    // My info
-    public String alias;
-    public int myPort;
+    /*----- Data members -----*/
 
-    // Successor
-    public String ipSuccessor;
-    public int portSuccessor;
+    // Client info
+    String alias;
+    int myPort;
 
-    // Predecessor
-    public String ipPredecessor;
-    public int portPredecessor;
+    // Successor info
+    String ipSuccessor;
+    int portSuccessor;
+
+    // Predecessor info
+    String ipPredecessor;
+    int portPredecessor;
 
     // Lock
-    public Semaphore semaphore;
+    Semaphore dataSemaphore;
 
-    private JsonObject createMessage_JOIN(String alias, int myPort) {
+    /*----- Accessors -----*/
+
+    /**
+     * Alias accessor
+     * @return the name of the client
+     */
+    public String getAlias() {
+        return this.alias;
+    }
+
+    /**
+     * Port accessor
+     * @return the port of the client
+     */
+    public int getPort() {
+        return this.myPort;
+    }
+
+    /**
+     * IP successor accessor
+     * @return the IP address of the client's successor
+     */
+    public String getIpSuccessor() {
+        return this.ipSuccessor;
+    }
+
+    /**
+     * Port successor accessor
+     * @return the port of the client's successor
+     */
+    public int getPortSuccessor() {
+        return this.portSuccessor;
+    }
+
+    /**
+     * IP predecessor accessor
+     * @return the IP address of the client's predecessor
+     */
+    public String getIpPredecessor() {
+        return this.ipPredecessor;
+    }
+
+    /**
+     * Port predecessor accessor
+     * @return the port of the client's predecessor
+     */
+    public int getPortPredecessor() {
+        return this.portPredecessor;
+    }
+
+    /*----- Mutators -----*/
+
+    /**
+     * IP successor mutator. This method blocks until it can acquire the lock.
+     * @param newIp the new IP address of the client's successor
+     */
+    public void updateIpSuccessor(String newIp) {
+        try {
+            dataSemaphore.acquire();
+            this.ipSuccessor = newIp;
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            dataSemaphore.release();
+        }
+    }
+
+    /**
+     * Port successor mutator. This method blocks until it can acquire the lock.
+     * @param newPort the new port of the client's successor
+     */
+    public void updatePortSuccessor(int newPort) {
+        try {
+            dataSemaphore.acquire();
+            this.portSuccessor = newPort;
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            dataSemaphore.release();
+        }
+    }
+
+    /**
+     * IP predecessor mutator. This method blocks until it can acquire the lock.
+     * @param newIp the new IP address of the client's predecessor
+     */
+    public void updateIpPredecessor(String newIp) {
+        try {
+            dataSemaphore.acquire();
+            this.ipPredecessor = newIp;
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            dataSemaphore.release();
+        }
+    }
+
+    /**
+     * Port predecessor mutator. This method blocks until it can acquire the lock.
+     * @param newPort the new port of the client's predecessor
+     */
+    public void updatePortPredecessor(int newPort) {
+        try {
+            dataSemaphore.acquire();
+            this.portPredecessor = newPort;
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            dataSemaphore.release();
+        }
+    }
+
+    /**
+    * Creates a JSON message for JOINs
+    * @param alias the desired client to join
+    * @param myPort the source port of the client who wishes to join
+    * @return Json object containing type and parameters
+    */
+    public JsonObject createMessage_JOIN(String alias, int myPort) {
         JsonObject joinJson = Json.createObjectBuilder()
-                .add("type", "JOIN")
-                .add("parameters", Json.createObjectBuilder()
-                        .add("myAlias", alias)
-                        .add("myPort", myPort))
-                .build();
+            .add("type", "JOIN")
+            .add("parameters", Json.createObjectBuilder()
+                .add("myAlias", alias)
+                .add("myPort", myPort))
+            .build();
         return joinJson;
     }
 
-    private JsonObject createMessage_ACCEPT(String ip, int port) {
+    /**
+    * Creates a JSON message for ACCEPTs
+    * @param ip the source ip of the client who was accepted
+    * @param port the source port of the client was accepted
+    * @return Json object containing type and parameters
+    */
+    public JsonObject createMessage_ACCEPT(String ip, int port) {
         JsonObject acceptJson = Json.createObjectBuilder()
-                .add("type", "ACCEPT")
-                .add("parameters", Json.createObjectBuilder()
-                        .add("ipPred", ip)
-                        .add("portPred", port))
-                .build();
+            .add("type", "ACCEPT")
+            .add("parameters", Json.createObjectBuilder()
+                .add("ipPred", ip)
+                .add("portPred", port))
+            .build();
         return acceptJson;
     }
 
-    private JsonObject createMessage_NEWSUCCESSOR(String ip, int port) {
+    /**
+    * Creates a JSON message for NEW SUCCESSORs
+    * @param ip the new successor's ip address
+    * @param port the new successor's port
+    * @return Json object containing type and parameters
+    */
+    public JsonObject createMessage_NEWSUCCESSOR(String ip, int port) {
         JsonObject newSuccessorJson = Json.createObjectBuilder()
-                .add("type", "NEWSUCCESSOR")
-                .add("parameters", Json.createObjectBuilder()
-                        .add("ipSuccessor", ip)
-                        .add("portSuccessor", port))
-                .build();
+            .add("type", "NEWSUCCESSOR")
+            .add("parameters", Json.createObjectBuilder()
+                .add("ipSuccessor", ip)
+                .add("portSuccessor", port))
+            .build();
         return newSuccessorJson;
     }
 
-    private JsonObject createMessage_PUT(String aliasSender, String aliasReceiver, String message) {
+    /**
+    * Creates a JSON message for PUTs
+    * @param aliasSender the name of the original client sender
+    * @param aliasReceiver the name of the destination client
+    * @param message the message sender wants receiver to see
+    * @return Json object containing type and parameters
+    */
+    public JsonObject createMessage_PUT(String aliasSender, String aliasReceiver, String message) {
         JsonObject putJson = Json.createObjectBuilder()
-                .add("type", "PUT")
-                .add("parameters", Json.createObjectBuilder()
-                        .add("aliasSender", aliasSender)
-                        .add("aliasReceiver", aliasReceiver)
-                        .add("message", message))
-                .build();
+            .add("type", "PUT")
+            .add("parameters", Json.createObjectBuilder()
+                .add("aliasSender", aliasSender)
+                .add("aliasReceiver", aliasReceiver)
+                .add("message", message))
+            .build();
         return putJson;
     }
 
-    private JsonObject createMessage_LEAVE(String ip, int port) {
+    /**
+    * Creates a JSON message for LEAVEs
+    * @param ip the source ip of the client who is leaving
+    * @param port the source port of the client who is leaving
+    * @return Json object containing type and parameters
+    */
+    public JsonObject createMessage_LEAVE(String ip, int port) {
         JsonObject leaveJson = Json.createObjectBuilder()
-                .add("type", "LEAVE")
-                .add("parameters", Json.createObjectBuilder()
-                        .add("ipPred", ip)
-                        .add("portPred", port))
-                .build();
+            .add("type", "LEAVE")
+            .add("parameters", Json.createObjectBuilder()
+                .add("ipPred", ip)
+                .add("portPred", port))
+            .build();
         return leaveJson;
     }
 
-    private class Server implements Runnable {
-        public Server() {
-        }
+    /**
+     * Sends a JSON message over a socket connection
+     * @param jsonMessage the JSON to send
+     * @param ip the IP address to send the message to
+     * @param port the port to connect to
+     */
+    public void sendJson(JsonObject jsonMessage, String ip, int port) {
+        try {
+            Socket socket = new Socket(ip, port);
+            ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
 
-        public void run() {
-            try {
-                ServerSocket servSock = new ServerSocket(myPort);
-                while (true) {
-                    Socket clntSock = servSock.accept(); // Get client connections
-                    ObjectInputStream ois   = new ObjectInputStream(clntSock.getInputStream());
-                    ObjectOutputStream oos  = new ObjectOutputStream(clntSock.getOutputStream());
+            JsonWriter jsonWriter = Json.createWriter(oos);
+            jsonWriter.write(jsonMessage);
+            jsonWriter.close();
 
-                    JsonReader jsonreader = Json.createReader(ois);
-                    JsonObject jsonResponse = jsonreader.readObject();
-
-                    String responseType = jsonResponse.getString("type");
-                    if (responseType.equals("JOIN")) {
-                        System.out.println("Receiving JOIN");
-
-                        // Get necessary info from json sent from the client
-                        String alias = jsonResponse.getJsonObject("parameters").getString("myAlias");
-                        Integer port = jsonResponse.getJsonObject("parameters").getInt("myPort");
-
-                        // Create new json responses with the necessary info
-                        JsonObject acceptJson = createMessage_ACCEPT(ipPredecessor, portPredecessor);
-                        JsonObject newSuccessorJson = createMessage_NEWSUCCESSOR("localhost", port);
-
-                        clntSock.close(); // Close the client socket connection
-
-                        // Open a new socket to flood the messages to update the routing table
-                        Socket socket = new Socket("localhost", port);
-                        oos = new ObjectOutputStream(socket.getOutputStream());
-                        JsonWriter jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(acceptJson);
-                        jsonWriter.close();
-                        socket.close();
-
-                        socket = new Socket("localhost", portPredecessor);
-                        oos = new ObjectOutputStream(socket.getOutputStream());
-                        jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(newSuccessorJson);
-                        jsonWriter.close();
-                        socket.close();
-
-                        try {
-                            semaphore.acquire(1);
-                            ipPredecessor = "localhost";
-                            portPredecessor = port;
-                        } catch(InterruptedException e) {
-                            e.printStackTrace();
-                        } finally {
-                            semaphore.release(1);
-                        }
-                    }
-                    if (responseType.equals("ACCEPT")) {
-                        System.out.println("Receiving ACCEPT");
-
-                        String ip     = jsonResponse.getJsonObject("parameters").getString("ipPred");
-                        Integer port  = jsonResponse.getJsonObject("parameters").getInt("portPred");
-
-                        clntSock.close();
-
-                        try {
-                            semaphore.acquire(1);
-                            ipPredecessor = ip;
-                            portPredecessor = port;
-                        } catch(InterruptedException e) {
-                            e.printStackTrace();
-                        } finally {
-                            semaphore.release(1);
-                        }
-                    }
-                    if (responseType.equals("NEWSUCCESSOR")) {
-                        System.out.println("Receiving NEW SUCCESSOR");
-
-                        String ip     = jsonResponse.getJsonObject("parameters").getString("ipSuccessor");
-                        Integer port  = jsonResponse.getJsonObject("parameters").getInt("portSuccessor");
-
-                        clntSock.close();
-
-                        try {
-                            semaphore.acquire(1);
-                            ipSuccessor = ip;
-                            portSuccessor = port;
-                        } catch(InterruptedException e) {
-                            e.printStackTrace();
-                        } finally {
-                            semaphore.release(1);
-                        }
-                    }
-                    if (responseType.equals("PUT")) {
-                        String aliasSender = jsonResponse.getJsonObject("parameters").getString("aliasSender");
-                        String aliasReceiver = jsonResponse.getJsonObject("parameters").getString("aliasReceiver");
-                        String message = jsonResponse.getJsonObject("parameters").getString("message");
-
-                        // Message arrived back at sender which means receiver is not available
-                        if (aliasSender.equals(alias)) {
-                            System.out.printf("%s is not available%n", aliasReceiver);
-                        } else if (aliasReceiver.equals(alias)) {
-                            // Message has arrived at correct place
-                            System.out.printf("%s: %s%n", aliasSender, message);
-                        } else {
-                            // Send message along circle
-                            Socket socket = new Socket(ipSuccessor, portSuccessor);
-                            oos = new ObjectOutputStream(socket.getOutputStream());
-                            JsonWriter jsonWriter = Json.createWriter(oos);
-                            jsonWriter.write(jsonResponse);
-                            jsonWriter.close();
-                            socket.close();
-                        }
-                    }
-                    if (responseType.equals("LEAVE")) {
-                        System.out.println("Receiving LEAVE");
-
-                        String ip     = jsonResponse.getJsonObject("parameters").getString("ipPred");
-                        Integer port  = jsonResponse.getJsonObject("parameters").getInt("portPred");
-
-                        clntSock.close();
-
-                        try {
-                            semaphore.acquire(1);
-                            ipPredecessor = ip;
-                            portPredecessor = port;
-                        } catch(InterruptedException e) {
-                            e.printStackTrace();
-                        } finally {
-                            semaphore.release(1);
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            socket.close();
+        } catch(IOException e) {
+            e.printStackTrace();
         }
     }
 
-    private class Client implements Runnable {
-        public Client() {
-        }
-
-        public void run() {
-            while (true) {
-                int port;
-                int option = getMenuOption();
-
-                // JOIN
-                if (option == 1) {
-                    Scanner s = new Scanner(System.in);
-                    System.out.println("IP address you want to connect to?");
-                    String ip = s.next();
-
-                    System.out.println("Port you want to connect to?");
-                    port = s.nextInt();
-
-                    try {
-                        Socket socket = new Socket(ip, port);
-                        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                        JsonObject join = createMessage_JOIN(alias, myPort);
-                        JsonWriter jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(join);
-                        jsonWriter.close();
-                        socket.close();
-
-                        try {
-                            semaphore.acquire(1);
-                            portSuccessor = port;
-                            ipSuccessor = ip;
-                        } catch(InterruptedException e) {
-                            e.printStackTrace();
-                        } finally {
-                            semaphore.release(1);
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                // PRINT
-                if (option == 2) {
-                    System.out.println("Successor " + portSuccessor);
-                    System.out.println("Predecessor " + portPredecessor);
-                }
-
-                // PUT
-                if (option == 3) {
-                    Scanner s = new Scanner(System.in);
-                    System.out.println("Who do you want to message? ");
-                    String to = s.nextLine();
-
-                    System.out.printf("What do you want to say to %s?%n", to);
-                    String message = s.nextLine();
-
-                    try {
-                        JsonObject putMessage = createMessage_PUT(alias, to, message);
-                        Socket socket = new Socket(ipSuccessor, portSuccessor);
-                        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                        JsonWriter jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(putMessage);
-                        jsonWriter.close();
-                        socket.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if(option == 4) {
-                    try {
-                        JsonObject successorMessage = createMessage_NEWSUCCESSOR(ipSuccessor, portSuccessor);
-                        Socket socket = new Socket(ipPredecessor, portPredecessor);
-                        ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-                        JsonWriter jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(successorMessage);
-                        jsonWriter.close();
-                        socket.close();
-
-                        JsonObject leaveMessage = createMessage_LEAVE(ipPredecessor, portPredecessor);
-                        socket = new Socket(ipSuccessor, portSuccessor);
-                        oos = new ObjectOutputStream(socket.getOutputStream());
-                        jsonWriter = Json.createWriter(oos);
-                        jsonWriter.write(leaveMessage);
-                        jsonWriter.close();
-                        socket.close();
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-
-        public int getMenuOption() {
-            String[] options = new String[4];
-            options[0] = "Join";
-            options[1] = "Print info";
-            options[2] = "Send a message";
-            options[3] = "Leave";
-
-            System.out.printf("--------------------%nChoose an option!%n--------------------%n");
-            for(int i = 0; i < options.length; i++)
-                System.out.printf("%d) %s%n",i+1,options[i]);
-
-            Scanner in = new Scanner(System.in);
-            int choice = in.nextInt();
-            while(choice < 1 || choice > options.length) {
-                System.out.printf("%d is an invalid option. Please try again%n", choice);
-                choice = in.nextInt();
-            }
-
-            return choice;
-        }
-    }
-
+    /**
+    * Constructor for the Chat class
+    * @param alias the name of the client
+    * @param myPort the port that the client exists on.
+    */
     public Chat(String alias, int myPort) {
         this.alias = alias;
         this.myPort = myPort;
-        this.semaphore = new Semaphore(1);
+        this.dataSemaphore = new Semaphore(1);
 
         this.ipSuccessor = "localhost";
         this.portSuccessor = myPort;
         this.ipPredecessor = "localhost";
         this.portPredecessor = myPort;
-
-        // Initialization of the peer
-        Thread server = new Thread(new Server());
-        Thread client = new Thread(new Client());
-        server.start();
-        client.start();
-        try {
-            client.join();
-            server.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
     }
 
+    /**
+    * Starts the program
+    * @param args inputs to the chat program. 1st arg should be a name and 2nd arg should be a port above 4000.
+    */
     public static void main(String[] args) {
         if (args.length < 2) {
             throw new IllegalArgumentException("Parameter: <alias> <myPort>");
         }
         Chat chat = new Chat(args[0], Integer.parseInt(args[1]));
+
+        // Initialization of the peer
+        Thread server = new Thread(new Server(chat));
+        Thread client = new Thread(new Client(chat));
+
+        server.start();
+        client.start();
+
+        try {
+            client.join();
+            if(!client.isAlive()) System.exit(0);
+            server.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 }
